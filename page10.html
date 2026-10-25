@@ -245,3 +245,32 @@
   
 </body>
 </html>
+<!-- MAHACONSTRO: casual image-saving protection -->
+<style>
+  /* Prevent casual dragging of images; does not prevent screenshots or developer tools. */
+  img {
+    -webkit-user-drag: none;
+    user-drag: none;
+  }
+  img {
+    -webkit-touch-callout: none;
+  }
+</style>
+<script>
+(function () {
+  // Disable right-click only on images, so normal page/context-menu use remains available elsewhere.
+  document.addEventListener("contextmenu", function (event) {
+    if (event.target && event.target.closest && event.target.closest("img, picture")) {
+      event.preventDefault();
+    }
+  });
+
+  // Prevent dragging images out of the page.
+  document.addEventListener("dragstart", function (event) {
+    if (event.target && event.target.closest && event.target.closest("img, picture")) {
+      event.preventDefault();
+    }
+  });
+})();
+</script>
+<!-- /MAHACONSTRO: casual image-saving protection -->
