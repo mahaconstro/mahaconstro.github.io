@@ -842,78 +842,55 @@
 </script>
 <!-- /MAHACONSTRO: casual image-saving protection -->
 
-
-<!-- ==========================================
-     MAHACONSTRO BACKGROUND MUSIC PLAYER
-=========================================== -->
-
-<audio id="mc-background-music" loop preload="auto">
-  <source
-    src="/maha.github.io/assets/audio/mahaconstro.mp3"
-    type="audio/mpeg">
+<!-- MAHACONSTRO BACKGROUND MUSIC -->
+<audio id="mahaconstro-audio" preload="auto" loop>
+  <source src="assets/audio/mahaconstro.mp3" type="audio/mpeg">
 </audio>
 
 <button
-  id="mc-music-toggle"
+  id="mahaconstro-music-btn"
   type="button"
-  aria-label="Turn background music on"
+  aria-label="Turn background music on or off"
   aria-pressed="false"
-  title="Turn music on">
-  <svg id="mc-music-icon"
-       xmlns="http://www.w3.org/2000/svg"
-       width="23"
-       height="23"
-       viewBox="0 0 24 24"
-       fill="none"
-       stroke="currentColor"
-       stroke-width="1.8"
-       stroke-linecap="round"
-       stroke-linejoin="round"
-       aria-hidden="true">
-    <path d="M9 18V5l12-2v13"/>
-    <circle cx="6" cy="18" r="3"/>
-    <circle cx="18" cy="16" r="3"/>
-  </svg>
+  title="Turn music on"
+>
+  <span aria-hidden="true">♫</span>
 </button>
 
 <style>
-  #mc-music-toggle {
-    position: fixed !important;
-    left: 18px !important;
-    bottom: 18px !important;
-    z-index: 2147483647 !important;
-
-    width: 46px !important;
-    height: 46px !important;
-    padding: 0 !important;
-
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-
-    border: 1px solid rgba(255,255,255,.35) !important;
-    border-radius: 50% !important;
-    background: #202020 !important;
-    color: #ffffff !important;
-
-    cursor: pointer !important;
-    opacity: .65;
-    box-shadow: 0 3px 12px rgba(0,0,0,.25) !important;
+  #mahaconstro-music-btn {
+    position: fixed;
+    left: 18px;
+    bottom: 18px;
+    z-index: 2147483647;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 50%;
+    background: #202020;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 23px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.25);
     -webkit-tap-highlight-color: transparent;
   }
 
-  #mc-music-toggle.mc-playing {
+  #mahaconstro-music-btn:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
+
+  #mahaconstro-music-btn.is-playing {
     opacity: 1;
   }
 
-  #mc-music-toggle svg {
-    display: block !important;
-    pointer-events: none;
-  }
-
-  #mc-music-toggle:focus-visible {
-    outline: 2px solid #ffffff;
-    outline-offset: 3px;
+  #mahaconstro-music-btn.is-paused {
+    opacity: 0.6;
   }
 </style>
 
@@ -921,105 +898,112 @@
 (function () {
   "use strict";
 
-  const audio = document.getElementById("mc-background-music");
-  const button = document.getElementById("mc-music-toggle");
+  const audio = document.getElementById("mahaconstro-audio");
+  const button = document.getElementById("mahaconstro-music-btn");
 
-  if (!audio || !button || button.dataset.initialized === "true") {
-    return;
-  }
+  if (!audio || !button || button.dataset.musicReady === "1") return;
+  button.dataset.musicReady = "1";
 
-  button.dataset.initialized = "true";
+  const PLAY_KEY = "mahaconstroMusicPlaying";
+  const TIME_KEY = "mahaconstroMusicTime";
 
-  const STORAGE_KEY = "mcMusicEnabled";
-  const TIME_KEY = "mcMusicPosition";
-
-  let musicEnabled = false;
-  let savedPosition = 0;
+  let musicOn = false;
+  let savedTime = 0;
   let positionRestored = false;
 
   try {
-    musicEnabled = sessionStorage.getItem(STORAGE_KEY) === "true";
-    savedPosition = Number(sessionStorage.getItem(TIME_KEY)) || 0;
-  } catch (error) {}
+    musicOn = sessionStorage.getItem(PLAY_KEY) === "1";
+    savedTime = parseFloat(sessionStorage.getItem(TIME_KEY) || "0");
+    if (!Number.isFinite(savedTime) || savedTime < 0) savedTime = 0;
+  } catch (error) {
+    musicOn = false;
+    savedTime = 0;
+  }
 
   function saveState() {
     try {
-      sessionStorage.setItem(STORAGE_KEY, String(musicEnabled));
-
-      if (Number.isFinite(audio.currentTime)) {
-        sessionStorage.setItem(TIME_KEY, String(audio.currentTime));
-      }
-    } catch (error) {}
+      sessionStorage.setItem(PLAY_KEY, musicOn ? "1" : "0");
+      sessionStorage.setItem(TIME_KEY, String(audio.currentTime || 0));
+    } catch (error) {
+      // Storage may be unavailable; music controls still work.
+    }
   }
 
   function updateButton() {
-    const playing = musicEnabled && !audio.paused;
+    const playing = musicOn && !audio.paused;
 
-    button.classList.toggle("mc-playing", playing);
+    button.classList.toggle("is-playing", playing);
+    button.classList.toggle("is-paused", !playing);
     button.setAttribute("aria-pressed", String(playing));
+    button.title = playing ? "Turn music off" : "Turn music on";
     button.setAttribute(
       "aria-label",
       playing ? "Turn background music off" : "Turn background music on"
     );
-    button.title = playing ? "Turn music off" : "Turn music on";
   }
 
   function restorePosition() {
     if (positionRestored || !Number.isFinite(audio.duration) ||
-        audio.duration <= 0) {
-      return;
-    }
+        audio.duration <= 0) return;
 
     positionRestored = true;
 
-    if (savedPosition > 0) {
+    if (savedTime > 0) {
       try {
-        audio.currentTime = savedPosition % audio.duration;
+        audio.currentTime = savedTime % audio.duration;
       } catch (error) {}
     }
   }
 
-  async function turnMusicOn() {
-    musicEnabled = true;
+  async function playMusic() {
+    musicOn = true;
     saveState();
 
     try {
       await audio.play();
+      updateButton();
+      saveState();
     } catch (error) {
-      // The browser may require the visitor to press the music button.
+      // Browser autoplay restrictions may require another user tap.
+      updateButton();
     }
-
-    updateButton();
   }
 
-  function turnMusicOff() {
-    musicEnabled = false;
+  function pauseMusic() {
+    musicOn = false;
     audio.pause();
     saveState();
     updateButton();
   }
 
-  button.addEventListener("click", function () {
-    if (musicEnabled && !audio.paused) {
-      turnMusicOff();
+  button.addEventListener("click", function (event) {
+    event.stopPropagation();
+
+    if (musicOn && !audio.paused) {
+      pauseMusic();
     } else {
-      turnMusicOn();
+      playMusic();
     }
   });
 
-  function firstInteraction(event) {
-    if (event.target.closest("#mc-music-toggle")) {
-      return;
-    }
+  // Start music after the first interaction anywhere on the page.
+  function startOnFirstInteraction(event) {
+    if (event.target.closest("#mahaconstro-music-btn")) return;
 
-    document.removeEventListener("pointerdown", firstInteraction);
+    document.removeEventListener(
+      "pointerdown",
+      startOnFirstInteraction
+    );
 
-    if (!musicEnabled) {
-      turnMusicOn();
+    if (!musicOn || audio.paused) {
+      playMusic();
     }
   }
 
-  document.addEventListener("pointerdown", firstInteraction);
+  document.addEventListener(
+    "pointerdown",
+    startOnFirstInteraction
+  );
 
   audio.addEventListener("loadedmetadata", restorePosition);
   audio.addEventListener("durationchange", restorePosition);
@@ -1032,25 +1016,22 @@
   });
 
   audio.addEventListener("timeupdate", function () {
-    if (musicEnabled && !audio.paused) {
-      saveState();
-    }
+    if (musicOn && !audio.paused) saveState();
   });
 
   window.addEventListener("pagehide", saveState);
 
   updateButton();
 
-  // Attempt to resume when another page loads.
-  if (musicEnabled) {
-    audio.addEventListener("canplay", function () {
+  // Try to resume after navigating to another page.
+  if (musicOn) {
+    audio.addEventListener("canplay", function resumeMusic() {
       restorePosition();
-      turnMusicOn();
+      playMusic();
     }, { once: true });
   }
 })();
 </script>
-</body>
 
 </body>
 </html>
