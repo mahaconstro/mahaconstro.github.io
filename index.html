@@ -842,55 +842,48 @@
 </script>
 <!-- /MAHACONSTRO: casual image-saving protection -->
 
-<!-- MAHACONSTRO BACKGROUND MUSIC -->
+
+<!-- MAHACONSTRO PERSISTENT MUSIC PLAYER -->
 <audio id="mahaconstro-audio" preload="auto" loop>
-  <source src="assets/audio/mahaconstro.mp3" type="audio/mpeg">
+  <source src="/maha.github.io/assets/audio/mahaconstro.mp3" type="audio/mpeg">
 </audio>
 
-<button
-  id="mahaconstro-music-btn"
-  type="button"
-  aria-label="Turn background music on or off"
-  aria-pressed="false"
-  title="Turn music on"
->
-  <span aria-hidden="true">♫</span>
+<button id="mahaconstro-music-btn"
+        type="button"
+        aria-label="Turn music on"
+        aria-pressed="false"
+        title="Turn music on">
+  ♫
 </button>
 
 <style>
   #mahaconstro-music-btn {
-    position: fixed;
-    left: 18px;
-    bottom: 18px;
-    z-index: 2147483647;
-    width: 44px;
-    height: 44px;
-    padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    border-radius: 50%;
-    background: #202020;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 23px;
-    line-height: 1;
-    cursor: pointer;
-    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.25);
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  #mahaconstro-music-btn:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: 3px;
+    position: fixed !important;
+    left: 20px !important;
+    bottom: 20px !important;
+    top: auto !important;
+    right: auto !important;
+    z-index: 2147483647 !important;
+    display: flex !important;
+    visibility: visible !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 46px !important;
+    height: 46px !important;
+    padding: 0 !important;
+    border: 1px solid rgba(255,255,255,.4) !important;
+    border-radius: 50% !important;
+    background: #202020 !important;
+    color: #fff !important;
+    font-size: 25px !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    box-shadow: 0 3px 12px rgba(0,0,0,.3) !important;
+    opacity: .65;
   }
 
   #mahaconstro-music-btn.is-playing {
-    opacity: 1;
-  }
-
-  #mahaconstro-music-btn.is-paused {
-    opacity: 0.6;
+    opacity: 1 !important;
   }
 </style>
 
@@ -901,137 +894,128 @@
   const audio = document.getElementById("mahaconstro-audio");
   const button = document.getElementById("mahaconstro-music-btn");
 
-  if (!audio || !button || button.dataset.musicReady === "1") return;
-  button.dataset.musicReady = "1";
+  if (!audio || !button || button.dataset.ready === "1") return;
+  button.dataset.ready = "1";
 
   const PLAY_KEY = "mahaconstroMusicPlaying";
   const TIME_KEY = "mahaconstroMusicTime";
 
-  let musicOn = false;
+  let enabled = false;
   let savedTime = 0;
-  let positionRestored = false;
+  let restored = false;
+  let starting = false;
 
   try {
-    musicOn = sessionStorage.getItem(PLAY_KEY) === "1";
-    savedTime = parseFloat(sessionStorage.getItem(TIME_KEY) || "0");
-    if (!Number.isFinite(savedTime) || savedTime < 0) savedTime = 0;
-  } catch (error) {
-    musicOn = false;
-    savedTime = 0;
-  }
+    enabled = sessionStorage.getItem(PLAY_KEY) === "1";
+    savedTime = Number(sessionStorage.getItem(TIME_KEY)) || 0;
+  } catch (e) {}
 
-  function saveState() {
+  function save() {
     try {
-      sessionStorage.setItem(PLAY_KEY, musicOn ? "1" : "0");
+      sessionStorage.setItem(PLAY_KEY, enabled ? "1" : "0");
       sessionStorage.setItem(TIME_KEY, String(audio.currentTime || 0));
-    } catch (error) {
-      // Storage may be unavailable; music controls still work.
-    }
+    } catch (e) {}
   }
 
   function updateButton() {
-    const playing = musicOn && !audio.paused;
-
+    const playing = enabled && !audio.paused;
     button.classList.toggle("is-playing", playing);
-    button.classList.toggle("is-paused", !playing);
     button.setAttribute("aria-pressed", String(playing));
-    button.title = playing ? "Turn music off" : "Turn music on";
     button.setAttribute(
       "aria-label",
-      playing ? "Turn background music off" : "Turn background music on"
+      playing ? "Turn music off" : "Turn music on"
     );
+    button.title = playing ? "Turn music off" : "Turn music on";
   }
 
-  function restorePosition() {
-    if (positionRestored || !Number.isFinite(audio.duration) ||
+  function restoreTime() {
+    if (restored || !Number.isFinite(audio.duration) ||
         audio.duration <= 0) return;
 
-    positionRestored = true;
+    restored = true;
 
     if (savedTime > 0) {
       try {
         audio.currentTime = savedTime % audio.duration;
-      } catch (error) {}
+      } catch (e) {}
     }
   }
 
   async function playMusic() {
-    musicOn = true;
-    saveState();
+    if (starting) return;
+
+    enabled = true;
+    save();
+    starting = true;
 
     try {
+      restoreTime();
       await audio.play();
+    } catch (e) {
+      // Some browsers require a fresh user interaction.
+    } finally {
+      starting = false;
       updateButton();
-      saveState();
-    } catch (error) {
-      // Browser autoplay restrictions may require another user tap.
-      updateButton();
+      save();
     }
   }
 
   function pauseMusic() {
-    musicOn = false;
+    enabled = false;
     audio.pause();
-    saveState();
+    save();
     updateButton();
   }
 
   button.addEventListener("click", function (event) {
     event.stopPropagation();
 
-    if (musicOn && !audio.paused) {
+    if (enabled && !audio.paused) {
       pauseMusic();
     } else {
       playMusic();
     }
   });
 
-  // Start music after the first interaction anywhere on the page.
-  function startOnFirstInteraction(event) {
+  // Start on the first interaction if the visitor has not turned
+  // music off explicitly.
+  function firstInteraction(event) {
     if (event.target.closest("#mahaconstro-music-btn")) return;
 
-    document.removeEventListener(
-      "pointerdown",
-      startOnFirstInteraction
-    );
+    document.removeEventListener("pointerdown", firstInteraction);
 
-    if (!musicOn || audio.paused) {
-      playMusic();
-    }
+    if (!enabled) playMusic();
   }
 
-  document.addEventListener(
-    "pointerdown",
-    startOnFirstInteraction
-  );
+  document.addEventListener("pointerdown", firstInteraction);
 
-  audio.addEventListener("loadedmetadata", restorePosition);
-  audio.addEventListener("durationchange", restorePosition);
-
+  audio.addEventListener("loadedmetadata", restoreTime);
+  audio.addEventListener("durationchange", restoreTime);
   audio.addEventListener("play", updateButton);
 
   audio.addEventListener("pause", function () {
     updateButton();
-    saveState();
+    save();
   });
 
   audio.addEventListener("timeupdate", function () {
-    if (musicOn && !audio.paused) saveState();
+    if (enabled && !audio.paused) save();
   });
 
-  window.addEventListener("pagehide", saveState);
+  window.addEventListener("pagehide", save);
 
   updateButton();
 
-  // Try to resume after navigating to another page.
-  if (musicOn) {
-    audio.addEventListener("canplay", function resumeMusic() {
-      restorePosition();
+  // Attempt to resume after navigating to another HTML page.
+  if (enabled) {
+    audio.addEventListener("canplay", function () {
+      restoreTime();
       playMusic();
     }, { once: true });
   }
 })();
 </script>
+
 
 </body>
 </html>
